@@ -20,8 +20,8 @@ token with the lookup code.
 
 The polling client receives the token.
 
-Is it safe
-----------
+Is it safe?
+-----------
 
 As long as the user correctly enters the lookup code (barring external factors) yes.
 
@@ -31,4 +31,6 @@ There are 33,285,996,544 possible code combinations and at least 2 characters
 would have to be entered incorrectly to erroneously pass the check digit test, and 
 in most of these cases it will still not pass the test. The likelihood of the 
 incorrect code matching another code is multiplied by the number of users currently 
-authenticating which is minimized as codes are only valid for 5 minutes.
+authenticating, though this is minimized as codes are only valid for 5 minutes.
+
+Codes and tokens are exchanged with RSA encryption.

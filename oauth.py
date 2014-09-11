@@ -305,7 +305,7 @@ def handleGetToken(arguments):
 	cnx = mysql.connector.connect(user=USER, password=PASSWORD, database=DATABASE)
 	cursor = cnx.cursor()
 	try:
-		query = ('SELECT token FROM oauth WHERE lookup = %s AND md5 = %s')
+		query = ('SELECT token FROM oauth WHERE lookup = %s AND md5 = %s AND oauth.timestamp < NOW() - INTERVAL 5 MINUTE')
 		
 		cursor.execute(query, (lookup, md5))
 		token = None
