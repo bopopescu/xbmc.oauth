@@ -16,13 +16,14 @@ try:
 except:
 	import json
 
-from cred import DATABASE, USER, PASSWORD
+from credentials.cred import DATABASE, USER, PASSWORD
 
 def formatString(string,**kwargs):
 	for k,v in kwargs.items():
 		string = string.replace('{%s}' % k,v)
 	return string
 		
+
 
 def base32encode(number, alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ'):
 	"""Converts an integer to a base32 string without 0,O,I,1"""
@@ -37,8 +38,14 @@ def base32encode(number, alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ'):
 	return base32
 
 def generateLookup():
-	return base32encode(random.randint(32**7,(32**8)-1)) #Genereate a random number that will be converted into 8 digits
+	from damm32 import damm32Encode
+	base = base32encode(random.randint(32**6,(32**7)-1)) #Genereate a random number that will be converted into 7 digits
+	return base + damm32Encode(base)
 	#return ('00000000' + str(random.randint(0,99999999)))[-8:]
+
+def checkLookup(lookup):
+	from damm32 import damm32Check
+	return damm32Check(lookup)
 
 def generateMD5():
 	return getMD5(str(random.randint(0,9999999999999999))).hexdigest()
@@ -78,7 +85,7 @@ def getServiceInfoFromLookup(lookup):
 		cursor.close()
 		cnx.close()
 
-def handleAuth1(not_found=False,arguments=None):
+def handleAuth1(not_found=False,bad_lookup=False,arguments=None):
 	print "Content-Type: text/html"
 	print
 	html = '''
@@ -118,7 +125,12 @@ def handleAuth1(not_found=False,arguments=None):
 			</body>
 		</html>
 	'''
-	if not_found:
+
+	if bad_lookup:
+		lookup = ''
+		if arguments and 'lookup' in arguments: lookup = arguments['lookup'].value
+		print html.replace('<NOTFOUND />','<br><br><span style="font-family:Arial;font-size:50px;color:red;">CODE NOT ENTERED CORRECTLY</span>').replace('@VALUE@',lookup)
+	elif not_found:
 		lookup = ''
 		if arguments and 'lookup' in arguments: lookup = arguments['lookup'].value
 		print html.replace('<NOTFOUND />','<br><br><span style="font-family:Arial;font-size:50px;color:red;">CODE NOT FOUND</span>').replace('@VALUE@',lookup)
@@ -148,9 +160,10 @@ def getRedirect(lookup,use_state=False):
 def handleAuth2(arguments):
 	if not 'lookup' in arguments:
 		return show404()
-
 	lookup = arguments['lookup'].value.replace('-','')
-	if not checkForLookup(lookup):
+	if not checkLookup(lookup):
+		return handleAuth1(bad_lookup=True,arguments=arguments)
+	elif not checkForLookup(lookup):
 		return handleAuth1(not_found=True,arguments=arguments)
 
 	import urllib
@@ -168,6 +181,7 @@ def handleGetLookup(arguments):
 		return show404()
 		
 	source = arguments['source'].value
+	key = arguments['key'].value
 	lookup = generateLookup()
 	md5 = generateMD5()
 	timestamp = getTimestamp()
@@ -192,9 +206,11 @@ def handleGetLookup(arguments):
 		cursor.close()
 		cnx.close()
 	
+	import encryption
+	
 	print "Content-Type: application/json"
 	print
-	print json.dumps({'lookup':lookup,'md5':md5})
+	print encryption.encrypt(json.dumps({'lookup':lookup,'md5':md5}),key)
 	
 def handleSaveToken():
 	print "Content-Type: text/plain"
@@ -280,8 +296,11 @@ def handleGetToken(arguments):
 	if not 'lookup' in arguments or not 'md5' in arguments:
 		return show404()
 	
-	lookup = arguments['lookup'].value
-	md5 = arguments['md5'].value
+	import encryption
+	
+	key = arguments['key'].value
+	lookup = encryption.decrypt(arguments['lookup'].value)
+	md5 = encryption.decrypt(arguments['md5'].value)
  
 	cnx = mysql.connector.connect(user=USER, password=PASSWORD, database=DATABASE)
 	cursor = cnx.cursor()
@@ -298,14 +317,14 @@ def handleGetToken(arguments):
 		print "Content-Type: application/json"
 		print
 		if token == None:
-			print json.dumps({'status':'error'})
+			print encryption.encrypt(json.dumps({'status':'error'}),key)
 		elif token:
-			print json.dumps({'status':'ready','token':token})
+			print encryption.encrypt(json.dumps({'status':'ready','token':token}),key)
 			query = ("DELETE FROM "+DATABASE+".oauth WHERE oauth.lookup = %s")
 			cursor.execute(query, (lookup,))
 			_clearStaleEntries(cursor)
 		else:
-			print json.dumps({'status':'waiting'})
+			print encryption.encrypt(json.dumps({'status':'waiting'}),key)
 			
 	finally:
 		cursor.close()

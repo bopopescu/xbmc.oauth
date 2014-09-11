@@ -5,7 +5,7 @@ cgitb.enable()
 
 import mysql.connector
 
-from cred import DATABASE, USER, PASSWORD
+from credentials.cred import DATABASE, USER, PASSWORD
 iconDir = 'http://auth.2ndmind.com/icons/'
 
 def getIcon(source):
